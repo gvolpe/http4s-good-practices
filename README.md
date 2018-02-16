@@ -9,17 +9,15 @@ Stream App
 It is recommended to start the Http Server by extending the given `fs2.StreamApp`. It'll handle resources cleanup automatically for you. Example:
 
 ```scala
-class HttpServer[F[_]](implicit F: Effect[F]) extends StreamApp[F] {
+class HttpServer[F[_]: Effect] extends StreamApp[F] {
 
   override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
-    Scheduler(corePoolSize = 2).flatMap { implicit scheduler =>
-      for {
-        exitCode <- BlazeBuilder[F]
-                      .bindHttp(8080, "0.0.0.0")
-                      .mountService(httpServices)
-                      .serve
-      } yield exitCode
-    }
+    for {
+      exitCode <- BlazeBuilder[F]
+                    .bindHttp(8080, "0.0.0.0")
+                    .mountService(httpServices)
+                    .serve
+    } yield exitCode
 
 }
 ```
@@ -38,6 +36,11 @@ import cats.effect.IO
 
 object Server extends HttpServer[IO]
 ```
+
+Fs2 Scheduler
+-------------
+
+TODO: Explain why it's good to create a Scheduler in the StreamApp.
 
 Usage of Http Client
 --------------------
