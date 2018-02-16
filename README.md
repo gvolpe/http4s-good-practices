@@ -72,6 +72,8 @@ for {
 } yield exitCode
 ```
 
+The same applies to the usage of any of the Fs2 data structures such as `Topic`, `Queue` and `Promise`. Created on startup and pass it along wherever needed.
+
 HTTP Services Composition
 -------------------------
 
@@ -89,10 +91,10 @@ val httpServices: HttpService[F] = (
 )
 ```
 
-Middleware Composition
-----------------------
+HTTP Middleware Composition
+---------------------------
 
-`HttpMiddleware[F[_]]` is also a plain function. Basically an alias for `Kleisli[OptionT[F, ?], Request[F], Response[F] => Kleisli[OptionT[F, ?], Request[F], Response[F]]`. So you can compose it.
+`HttpMiddleware[F[_]]` is also a plain function. Basically an alias for `HttpService[F] => HttpService[F]`. So you can compose it.
 
 ```scala
 def middleware: HttpMiddleware[F] = {
