@@ -37,15 +37,10 @@ import cats.effect.IO
 object Server extends HttpServer[IO]
 ```
 
-Fs2 Scheduler
--------------
-
-TODO: Explain why it's good to create a Scheduler in the StreamApp.
-
 Usage of Http Client
 --------------------
 
-Whenever any of your services or HTTP endpoints need to make use of an HTTP Client, make sure that you create the object only once and pass it along.
+Whenever any of your services or HTTP endpoints need to make use of an HTTP Client, make sure that you create only one instance and pass it along.
 
 Given the following service:
 
@@ -72,7 +67,7 @@ for {
 } yield exitCode
 ```
 
-The same applies to the usage of any of the Fs2 data structures such as `Topic`, `Queue` and `Promise`. Created on startup and pass it along wherever needed.
+The same applies to the usage of any of the Fs2 data structures such as `Topic`, `Queue` and `Promise`. Create it on startup and pass it along wherever needed.
 
 HTTP Services Composition
 -------------------------
@@ -91,6 +86,8 @@ val httpServices: HttpService[F] = (
 )
 ```
 
+***NOTE***: *Don't combine plain `HttpService` with `AuthedService`. Use `mountService` from Server Builder instead for the latter to avoid conflicts since the AuthedService protects an entire namespace and not just an endpoint.*
+
 HTTP Middleware Composition
 ---------------------------
 
@@ -102,3 +99,40 @@ def middleware: HttpMiddleware[F] = {
     { service => AutoSlash(service)(F) }
 }
 ```
+
+Fs2 Scheduler
+-------------
+
+It's a very common practice to have an `fs2.Scheduler` as an implicit parameter that many of your services might use to manage time sensible processes. So it makes sense to create it at the the server startup time:
+
+
+```scala
+override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, ExitCode] =
+  Scheduler(corePoolSize = 2).flatMap { implicit scheduler =>
+    for {
+      exitCode <- BlazeBuilder[F]
+                    .bindHttp(8080, "0.0.0.0")
+                    .serve
+    } yield exitCode
+  }
+```
+
+Encoders / Decoders
+-------------------
+
+- Circe
+- Jawn Fs2
+
+Error Handling
+--------------
+
+- `MonadError` -> `F[A]`
+- `Either` -> `F[Error Either A]`
+- Both Either and MonadError (adapt to Throwable)
+
+Authentication
+--------------
+
+- `AuthedService[T, F[_]]`
+- `AuthedMiddleware[F[_], T]`
+- `AuthedRequest[F[_], T]`
