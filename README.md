@@ -55,11 +55,11 @@ class MyService[F[_]: Sync](client: Client[F]) {
 }
 ```
 
-You'll create the client where you start the HTTP server:
+You'll create the client where you start the HTTP server using the `Http1Client.stream` (uses `Stream.bracket` under the hood):
 
 ```scala
 for {
-  client   <- Stream.eval(Http1Client[F]())
+  client   <- Http1Client.stream[F]())
   service  = new MyService[F](client)
   exitCode <- BlazeBuilder[F]
                 .bindHttp(8080, "0.0.0.0")
@@ -87,6 +87,8 @@ val httpServices: HttpService[F] = (
 ```
 
 ***NOTE***: *Don't combine plain `HttpService` with `AuthedService`. Use `mountService` from Server Builder instead for the latter to avoid conflicts since the AuthedService protects an entire namespace and not just an endpoint.*
+
+***NOTE 2***: Since `Http4s 0.18.1` you can use `AuthMiddleware.withFallThrough(authUser)` allowing you to combine plain services with authenticated services.
 
 HTTP Middleware Composition
 ---------------------------
@@ -120,8 +122,40 @@ override def stream(args: List[String], requestShutdown: F[Unit]): Stream[F, Exi
 Encoders / Decoders
 -------------------
 
-- Circe
-- Jawn Fs2
+`Http4s` exposes two interfaces to encode and decode data, namely `EntityDecoder[F, A]` and `EntityEncoder[F, A]`. And most of the time Json is the data type you're going to be working with. Here's where `Circe` shines and integrates very well.
+
+#### Circe
+
+You need 3 extra dependencies: `circe-core`, `circe-generic` and `http4s-circe`. One option is to define the json codecs in the package object where you define all your `HttpService`s. This is my setup with a workaround (see https://github.com/http4s/http4s/issues/1648):
+
+```scala
+import cats.effect.Sync
+import io.circe.{Decoder, Encoder}
+import org.http4s.{EntityDecoder, EntityEncoder}
+import org.http4s.circe.{jsonEncoderOf, jsonOf}
+
+package object http {
+  implicit def jsonDecoder[F[_]: Sync, A <: Product: Decoder]: EntityDecoder[F, A] = jsonOf[F, A]
+  implicit def jsonEncoder[F[_]: Sync, A <: Product: Encoder]: EntityEncoder[F, A] = jsonEncoderOf[F, A]
+}
+```
+
+And then you can use the case class auto derivation feature by just importing `io.circe.generic.auto._` in your `HttpService`s.
+
+If you also want to support value classes out of the box, these two codecs will be helpful (you need an extra dependency `circe-generic-extras`):
+
+```scala
+import io.circe.generic.extras.decoding.UnwrappedDecoder
+import io.circe.generic.extras.encoding.UnwrappedEncoder
+
+implicit def valueClassEncoder[A: UnwrappedEncoder]: Encoder[A] = implicitly
+implicit def valueClassDecoder[A: UnwrappedDecoder]: Decoder[A] = implicitly
+```
+
+#### Streaming Json Parsers
+
+- Jawn Fs2: https://github.com/http4s/jawn-fs2
+- Circe Fs2: https://github.com/circe/circe-fs2
 
 Error Handling
 --------------
